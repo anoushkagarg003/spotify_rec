@@ -1,0 +1,2 @@
+spotipy
+mysql-connector-python
