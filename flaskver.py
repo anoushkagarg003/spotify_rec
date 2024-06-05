@@ -1,9 +1,10 @@
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-from flask import Flask, session, redirect, request, url_for
+from flask import Flask, session, redirect, request, url_for, render_template
 from spotipy.cache_handler import FlaskSessionCacheHandler
-from sqlsample import get_connection
+from sqlsample import get_connection, execute_query
 connection=get_connection()
+
 scope = "user-library-read, user-top-read"
 client_id = "f43830319e8943f2994558f9c8a5f72b"  # Replace with your actual Spotify client ID
 client_secret = "dff5190ed19c4fb7af09d8d83de09a6b"  # Replace with your actual Spotify client secret
@@ -17,6 +18,22 @@ app.secret_key = "your_secret_key"  # Replace with a secret key for session mana
 cache_handler = FlaskSessionCacheHandler(session)
 sp_oauth = SpotifyOAuth(scope=scope, client_id=client_id, client_secret=client_secret, redirect_uri=redirect_uri, cache_handler=cache_handler, show_dialog=True)
 
+def create_tables():
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_top_songs (
+                id VARCHAR(255) PRIMARY KEY,
+                name VARCHAR(255)
+            );
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS potential_recommendations (
+                id VARCHAR(255) PRIMARY KEY,
+                name VARCHAR(255)
+            );
+        """)
+    connection.commit()
+
 # Spotify authentication route
 @app.route('/')
 def home():
@@ -24,15 +41,34 @@ def home():
     if not token_info:
         auth_url = sp_oauth.get_authorize_url()
         return redirect(auth_url)
-    
-    # Initialize the Spotify client with the valid access token
     sp = spotipy.Spotify(auth=token_info['access_token'])
-    results = sp.current_user_saved_tracks()
-    tracks_info = ""
-    for idx, item in enumerate(results['items']):
-        track = item['track']
-        tracks_info += f"{idx+1}: {track['artists'][0]['name']} - {track['name']}<br>"
-    return redirect(url_for('pulltopartists'))
+    top_tracks = sp.current_user_top_tracks(limit=50, offset=0, time_range='medium_term')
+    with connection.cursor() as cursor:
+        for track in top_tracks['items']:
+            cursor.execute("""
+                INSERT INTO user_top_songs (id, name) VALUES (%s, %s)
+                ON DUPLICATE KEY UPDATE name = VALUES(name);
+            """, (track['id'], track['name']))
+    connection.commit()
+    return redirect(url_for('user_top_songs'))
+
+@app.route('/user_top_songs')
+def user_top_songs():
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT id, name FROM user_top_songs;")
+        user_top_songs = cursor.fetchall()
+    return render_template(r"table.html", title='User Top Songs', items=user_top_songs)
+
+@app.route('/me/top/tracks/')
+def pulltoptrack():
+    token_info = cache_handler.get_cached_token()
+    if not token_info:
+        redirect(url_for('home'))
+    sp = spotipy.Spotify(auth=token_info['access_token'])
+    top_tracks=sp.current_user_top_tracks(limit=50, offset=0, time_range='medium_term')
+    tracks={}
+    for i,x in enumerate(top_tracks['items']):
+        tracks[x['id']]=x['name']
 
 @app.route('/me/top/artists/')
 def pulltopartists():
