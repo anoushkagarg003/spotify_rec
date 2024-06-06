@@ -7,7 +7,7 @@
     <style>
         table {
             border-collapse: collapse;
-            width: 50%;
+            width: 100%;
             margin-top: 20px;
         }
         th, td {
@@ -24,6 +24,19 @@
             <tr>
                 <th>ID</th>
                 <th>Name</th>
+                <th>Acousticness</th>
+                <th>Danceability</th>
+                <th>Duration (ms)</th>
+                <th>Energy</th>
+                <th>Instrumentalness</th>
+                <th>Key</th>
+                <th>Liveness</th>
+                <th>Loudness</th>
+                <th>Mode</th>
+                <th>Speechiness</th>
+                <th>Tempo</th>
+                <th>Time Signature</th>
+                <th>Valence</th>
             </tr>
         </thead>
         <tbody>
@@ -31,6 +44,19 @@
             <tr>
                 <td>{{ item[0] }}</td>
                 <td>{{ item[1] }}</td>
+                <td>{{ item[2] }}</td>
+                <td>{{ item[3] }}</td>
+                <td>{{ item[4] }}</td>
+                <td>{{ item[5] }}</td>
+                <td>{{ item[6] }}</td>
+                <td>{{ item[7] }}</td>
+                <td>{{ item[8] }}</td>
+                <td>{{ item[9] }}</td>
+                <td>{{ item[10] }}</td>
+                <td>{{ item[11] }}</td>
+                <td>{{ item[12] }}</td>
+                <td>{{ item[13] }}</td>
+                <td>{{ item[14] }}</td>
             </tr>
             {% endfor %}
         </tbody>
