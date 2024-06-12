@@ -15,7 +15,7 @@ df_user = pd.read_sql(query1, connection)
 df_recs=pd.read_sql(query2, connection)
 # Close the connection
 connection.close()
-
+df_recs.rename(columns={'key_value': 'key'}, inplace=True)
 # Display the DataFrame
 
 
@@ -42,49 +42,22 @@ def compute_similarity_for_row(row, df_user_vector):
 df_user_vector = df_user.drop(columns=['id', 'name'])
 df_recs_vector = df_recs.drop(columns=['id', 'name'])
 
-# Print data types
-'''print(df_recs_vector.dtypes)
-print(df_user_vector.dtypes)
+# Standardize the features
+scaler = StandardScaler()
+userdata_scaled = scaler.fit_transform(df_user_vector)
+# Perform PCA
+
+pca = PCA(n_components=7)
+userdata_pca = pca.fit_transform(userdata_scaled)
+recdata_scaled=scaler.transform(df_recs_vector)
+recdata_pca=pca.transform(recdata_scaled)
+userdata_pca_df = pd.DataFrame(userdata_pca, columns=['feature1', 'feature2', 'feature3', 'feature4', 'feature5', 'feature6', 'feature7'])
+recdata_pca_df = pd.DataFrame(recdata_pca, columns=['feature1', 'feature2', 'feature3', 'feature4', 'feature5', 'feature6', 'feature7'])
 
 # Apply the similarity scoring function to each row
-results = df_recs_vector.apply(compute_similarity_for_row, axis=1, df_user_vector=df_user_vector)
+results = recdata_pca_df.apply(compute_similarity_for_row, axis=1, df_user_vector=userdata_pca_df)
 
 # Combine the results with the original df_recs to display results alongside song names
-df_results = df_recs[['id', 'name']].join(results)
-
-print(df_results)'''
-# Standardize the features
-X=df_user_vector
-scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X)
-# Perform PCA
-pca = PCA(n_components=7)
-X_pca = pca.fit_transform(X_scaled)
-
-# Calculate the explained variance ratio
-explained_variance_ratio=pca.explained_variance_ratio_
-print(pca.explained_variance_ratio_)
-print("\nNumber of Components:", pca.n_components_)
-# Create a 2x1 grid of subplots
-fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(16, 8))
-
-# Plot the explained variance ratio in the first subplot
-ax1.bar(range(1, len(explained_variance_ratio) + 1), explained_variance_ratio)
-ax1.set_xlabel("Principal Component")
-ax1.set_ylabel("Explained Variance Ratio")
-ax1.set_title("Explained Variance Ratio by Principal Component")
-cumulative_explained_variance = np.cumsum(explained_variance_ratio)
-
-# Plot the cumulative explained variance in the second subplot
-ax2.plot(
-    range(1, len(cumulative_explained_variance) + 1),
-    cumulative_explained_variance,
-    marker="o",
-)
-ax2.set_xlabel("Number of Principal Components")
-ax2.set_ylabel("Cumulative Explained Variance")
-ax2.set_title("Cumulative Explained Variance by Principal Components")
-
-# Display the figure
-plt.tight_layout()
-plt.show()
+df = df_recs[['id', 'name']].join(results)
+df_sorted = df.sort_values(by='cumulative_similarity_score', ascending=False)
+print(df_sorted.head(10))
