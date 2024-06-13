@@ -5,6 +5,7 @@ from spotipy.cache_handler import FlaskSessionCacheHandler
 from sqlsample import get_connection, execute_query
 import mysql.connector
 import time
+import concurrent.futures
 connection=get_connection()
 
 scope = "user-library-read, user-top-read"
@@ -24,7 +25,7 @@ def create_tables():
     try:
         with connection.cursor() as cursor:
             # Drop and create user_top_songs_1 table
-            #cursor.execute("DROP TABLE IF EXISTS user_top_songs_1;")
+            cursor.execute("DROP TABLE IF EXISTS user_top_songs_1;")
             
             # Committing the drop operation
             connection.commit()
@@ -50,7 +51,7 @@ def create_tables():
             
             # Sleep for 10 seconds (if this is necessary)
             time.sleep(10)
-            #cursor.execute("DROP TABLE IF EXISTS potential_recommendations_2;")
+            cursor.execute("DROP TABLE IF EXISTS potential_recommendations_2;")
             
             # Committing the drop operation
             connection.commit()
@@ -63,7 +64,7 @@ def create_tables():
                     duration_ms INT,
                     energy FLOAT,
                     instrumentalness FLOAT,
-                    key_value INT,
+                    `key` INT,
                     liveness FLOAT,
                     loudness FLOAT,
                     mode INT,
@@ -79,7 +80,38 @@ def create_tables():
     except mysql.connector.Error as err:
         print(f"Error: {err}")
         connection.rollback()  # Rolling back changes in case of error
+def insert_tracks(cursor, tracks, table_name):
+    query = f"""
+    INSERT INTO {table_name} 
+    (id, name, acousticness, danceability, duration_ms, energy, instrumentalness, `key`, liveness, loudness, mode, speechiness, tempo, time_signature, valence)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    ON DUPLICATE KEY UPDATE
+        name = VALUES(name),
+        acousticness = VALUES(acousticness),
+        danceability = VALUES(danceability),
+        duration_ms = VALUES(duration_ms),
+        energy = VALUES(energy),
+        instrumentalness = VALUES(instrumentalness),
+        `key` = VALUES(`key`),
+        liveness = VALUES(liveness),
+        loudness = VALUES(loudness),
+        mode = VALUES(mode),
+        speechiness = VALUES(speechiness),
+        tempo = VALUES(tempo),
+        time_signature = VALUES(time_signature),
+        valence = VALUES(valence);
+    """
+    cursor.executemany(query, tracks)
 
+def fetch_audio_features(sp, track_ids):
+    audio_features = []
+    for i in range(0, len(track_ids), 100):
+        chunk = track_ids[i:i + 100]
+        audio_features.extend(sp.audio_features(tracks=chunk))
+    return audio_features
+
+def fetch_top_tracks(sp, artist_id):
+    return [track['id'] for track in sp.artist_top_tracks(artist_id)['tracks']]
 
 
 # Spotify authentication route
@@ -92,102 +124,38 @@ def home():
     sp = spotipy.Spotify(auth=token_info['access_token'])
     top_tracks = sp.current_user_top_tracks(limit=50, offset=0, time_range='medium_term')
     track_ids = [track['id'] for track in top_tracks['items']]
-    # Fetch audio features for top tracks
-    audio_features = sp.audio_features(tracks=track_ids)
-    with connection.cursor() as cursor:
-        for track, features in zip(top_tracks['items'], audio_features):
-            cursor.execute("""
-            INSERT INTO user_top_songs_1 (id, name, acousticness, danceability, duration_ms, energy, instrumentalness, `key`, liveness, loudness, mode, speechiness, tempo, time_signature, valence)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON DUPLICATE KEY UPDATE
-                name = VALUES(name),
-                acousticness = VALUES(acousticness),
-                danceability = VALUES(danceability),
-                duration_ms = VALUES(duration_ms),
-                energy = VALUES(energy),
-                instrumentalness = VALUES(instrumentalness),
-                `key` = VALUES(`key`),
-                liveness = VALUES(liveness),
-                loudness = VALUES(loudness),
-                mode = VALUES(mode),
-                speechiness = VALUES(speechiness),
-                tempo = VALUES(tempo),
-                time_signature = VALUES(time_signature),
-                valence = VALUES(valence);
-        """, (
-            track['id'], 
-            track['name'], 
-            features['acousticness'], 
-            features['danceability'], 
-            features['duration_ms'], 
-            features['energy'], 
-            features['instrumentalness'], 
-            features['key'], 
-            features['liveness'], 
-            features['loudness'], 
-            features['mode'], 
-            features['speechiness'], 
-            features['tempo'], 
-            features['time_signature'], 
-            features['valence']
-        ))
-    connection.commit()
-    top_artists = sp.current_user_top_artists(limit=50, offset=0, time_range='medium_term')
-    artists = {artist['id']: artist['name'] for artist in top_artists['items']}
+    audio_features = fetch_audio_features(sp, track_ids)
 
-    # Process each top artist to find similar artists and their top tracks
-    track_ids=[]
-    for artist_id in artists.keys():
-        similar_artists = sp.artist_related_artists(artist_id)
-        for artist in similar_artists['artists']:
-            similar_artist_id = artist['id']
-            # Fetch top tracks of each similar artist
-            top_tracks = sp.artist_top_tracks(similar_artist_id)
-                # Prepare a list of track IDs for audio features retrieval
-            for track in top_tracks['tracks']:
-                track_ids.append(track['id'])
-                '''track_ids_names = []
-                for track_id in track_ids:
-                    track_info = sp.track(track_id)
-                    track_name = track_info['name']
-                    track_ids_names.append({'id':track_id, 'name':track_name})'''
-                # Chunk the track IDs into batches of 100 for audio features retrieval
-    for i in range(0, len(track_ids), 100):
-        chunk = track_ids[i:i + 100]
-        audio_features1 = sp.audio_features(tracks=chunk)
-        audio_features.extend(audio_features1)
-                # Insert potential recommendations into the database
-                #for track, track_info in zip(audio_features, track_ids_names):
-                #time.sleep(10)
+    # Insert user's top tracks into the database
     with connection.cursor() as cursor:
-            for track in audio_features:
-                cursor.execute("""
-                            INSERT INTO potential_recommendations_1 
-                            (id, name, acousticness, danceability, duration_ms, energy, 
-                             instrumentalness, key_value, liveness, loudness, mode, 
-                             speechiness, tempo, time_signature, valence) 
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                            ON DUPLICATE KEY UPDATE 
-                            name = VALUES(name), 
-                            acousticness = VALUES(acousticness), 
-                            danceability = VALUES(danceability), 
-                            duration_ms = VALUES(duration_ms), 
-                            energy = VALUES(energy), 
-                            instrumentalness = VALUES(instrumentalness), 
-                            key_value = VALUES(key_value), 
-                            liveness = VALUES(liveness), 
-                            loudness = VALUES(loudness), 
-                            mode = VALUES(mode), 
-                            speechiness = VALUES(speechiness), 
-                            tempo = VALUES(tempo), 
-                            time_signature = VALUES(time_signature), 
-                            valence = VALUES(valence);
-                        """, (track['id'], None , track['acousticness'], 
-                              track['danceability'], track['duration_ms'], track['energy'], 
-                              track['instrumentalness'], track['key'], track['liveness'], 
-                              track['loudness'], track['mode'], track['speechiness'], 
-                              track['tempo'], track['time_signature'], track['valence']))
-                connection.commit()
+        tracks = [(track['id'], track['name'], features['acousticness'], features['danceability'], features['duration_ms'], 
+                   features['energy'], features['instrumentalness'], features['key'], features['liveness'], features['loudness'], 
+                   features['mode'], features['speechiness'], features['tempo'], features['time_signature'], features['valence']) 
+                  for track, features in zip(top_tracks['items'], audio_features)]
+        insert_tracks(cursor, tracks,'user_top_songs_1')
+    connection.commit()
+
+    # Fetch user's top artists and their similar artists' top tracks
+    top_artists = sp.current_user_top_artists(limit=50, offset=0, time_range='medium_term')
+    artist_ids = [artist['id'] for artist in top_artists['items']]
+
+    similar_artist_track_ids = []
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = [executor.submit(fetch_top_tracks, sp, artist_id) for artist_id in artist_ids]
+        for future in concurrent.futures.as_completed(futures):
+            similar_artist_track_ids.extend(future.result())
+
+    # Fetch audio features for similar artists' top tracks
+    audio_features = fetch_audio_features(sp, similar_artist_track_ids)
+
+    # Insert potential recommendations into the database
+    with connection.cursor() as cursor:
+        tracks = [(track['id'], None, track['acousticness'], track['danceability'], track['duration_ms'], track['energy'], 
+                   track['instrumentalness'], track['key'], track['liveness'], track['loudness'], track['mode'], 
+                   track['speechiness'], track['tempo'], track['time_signature'], track['valence']) 
+                  for track in audio_features]
+        insert_tracks(cursor, tracks, 'potential_recommendations_2')
+    connection.commit()
     return redirect(url_for('potential_recommendations'))
 
 @app.route('/user_top_songs')
@@ -201,7 +169,7 @@ def user_top_songs():
 @app.route('/potential_recommendations')
 def potential_recommendations():
     with connection.cursor() as cursor:
-        cursor.execute("SELECT * FROM potential_recommendations_1;")
+        cursor.execute("SELECT * FROM potential_recommendations_2;")
         potential_recommendations = cursor.fetchall()
     return render_template('table.html', title='Potential Recommendations', items=potential_recommendations)
 
