@@ -1,21 +1,23 @@
-import mysql.connector
-from mysql.connector import Error
+import pymysql
+from pymysql import Error
 
-# Function to create a database connection
+# Function to create a connection using PyMySQL
 def create_connection(host_name, user_name, user_password, db_name):
     connection = None
     try:
-        connection = mysql.connector.connect(
+        connection = pymysql.connect(
             host=host_name,
             user=user_name,
-            passwd=user_password,
-            database=db_name
+            password=user_password,
+            database=db_name,
+            cursorclass=pymysql.cursors.DictCursor
         )
         print("Connection to MySQL DB successful")
     except Error as e:
         print(f"The error '{e}' occurred")
     return connection
 
+# Function to create a database
 def create_database(connection, db_name):
     cursor = connection.cursor()
     try:
@@ -40,19 +42,20 @@ user_name = "anoushka"
 user_password = "sql@123SQL"
 db_name = "spotify_project"
 
-
-#create_database(connection, db_name)
+# Function to get a connection
 def get_connection():
-    connection=None
+    connection = None
     try:
-        connection = mysql.connector.connect(
-            host = "localhost",
-            user = "anoushka",
-            passwd = "sql@123SQL",
-            database = "spotify_project")
-        print('success')
+        connection = pymysql.connect(
+            host=host_name,
+            user=user_name,
+            password=user_password,
+            database=db_name,
+            cursorclass=pymysql.cursors.DictCursor
+        )
+        print('Connection to MySQL DB successful')
     except Error as e:
         print(f"The error '{e}' occurred")
     return connection
-connection=get_connection()
 
+connection = get_connection()

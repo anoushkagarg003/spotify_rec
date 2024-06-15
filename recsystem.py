@@ -7,16 +7,23 @@ from sklearn.preprocessing import StandardScaler
 connection=get_connection()
 
 # Define the query
-query1 = "SELECT * FROM user_top_songs_1"
-query2 = "SELECT * FROM potential_recommendations_1"
+with connection.cursor() as cursor:
+        cursor.execute("SELECT * FROM user_top_songs_1;")
+        user_top_songs = cursor.fetchall()
+        cursor.execute("SELECT * FROM potential_recommendations_2;")
+        potential_recommendations = cursor.fetchall()
 
 # Execute the query and fetch the data into a DataFrame
-df_user = pd.read_sql(query1, connection)
-df_recs=pd.read_sql(query2, connection)
+df_user = pd.DataFrame(user_top_songs)
+df_recs=pd.DataFrame(potential_recommendations)
+print("User Top Songs DataFrame:")
+print(df_user)
 # Close the connection
 connection.close()
 df_recs.rename(columns={'key_value': 'key'}, inplace=True)
 # Display the DataFrame
+print("Recs DataFrame:")
+print(df_recs)
 
 
 import pandas as pd
