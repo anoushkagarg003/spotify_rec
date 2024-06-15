@@ -1,11 +1,13 @@
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-from flask import Flask, session, redirect, request, url_for, render_template, jsonify
+from flask import Flask, session, redirect, request, render_template, jsonify
 from spotipy.cache_handler import FlaskSessionCacheHandler
-from sqlsample import get_connection, execute_query
+from sqlsample import get_connection
 import time
 import subprocess
 from pymysql.err import OperationalError
+from recsystemredone import get_recommendations
+import pandas as pd
 connection=get_connection()
 
 scope = "user-library-read, user-top-read"
@@ -187,9 +189,8 @@ def home():
                               track['loudness'], track['mode'], track['speechiness'], 
                               track['tempo'], track['time_signature'], track['valence']))
                 connection.commit()
-    return redirect(url_for('user_top_songs'))
     try:
-        result = subprocess.run(['python', r'C:\Users\anous\spotify-project\recsystem.py'], capture_output=True, text=True, check=True) 
+        result = subprocess.run([r'C:\Users\anous\spotify-project\venv\Scripts\python.exe', r'C:\Users\anous\spotify-project\recsystem.py'], capture_output=True, text=True, check=True) 
         return jsonify({
             'stdout': result.stdout,
             'stderr': result.stderr
