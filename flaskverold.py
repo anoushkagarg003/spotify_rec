@@ -1,13 +1,13 @@
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-from flask import Flask, session, redirect, request, render_template, jsonify
+from flask import Flask, session, redirect, request, render_template, url_for
 from spotipy.cache_handler import FlaskSessionCacheHandler
 from sqlsample import get_connection
 import time
 import subprocess
 from pymysql.err import OperationalError
-from recsystemredone import get_recommendations
 import pandas as pd
+from datetime import datetime
 connection=get_connection()
 
 scope = "user-library-read, user-top-read"
@@ -22,6 +22,23 @@ app.secret_key = "your_secret_key"  # Replace with a secret key for session mana
 # Configure SpotifyOAuth and FlaskSessionCacheHandler
 cache_handler = FlaskSessionCacheHandler(session)
 sp_oauth = SpotifyOAuth(scope=scope, client_id=client_id, client_secret=client_secret, redirect_uri=redirect_uri, cache_handler=cache_handler, show_dialog=True)
+def standardize_date(date_str):
+    date_formats = [
+    '%Y-%m-%d',  # Year, month, day
+    '%Y-%m',     # Year, month
+    '%Y'         # Year only
+    ]
+    for fmt in date_formats:
+        try:
+            date_obj = datetime.strptime(date_str, fmt)
+            if fmt == '%Y':
+                date_obj = date_obj.replace(month=1, day=1)
+            elif fmt == '%Y-%m':
+                date_obj = date_obj.replace(day=1)
+            return date_obj
+        except ValueError:
+            continue
+    return None
 
 def create_tables():
     try:
@@ -73,7 +90,8 @@ def create_tables():
                     speechiness FLOAT,
                     tempo FLOAT,
                     time_signature INT,
-                    valence FLOAT
+                    valence FLOAT,
+                    release_date DATE
                 );
             """)
         
@@ -147,12 +165,23 @@ def home():
                 # Prepare a list of track IDs for audio features retrieval
         for track in top_tracks['tracks']:
             track_ids.append(track['id'])
-            '''track_ids_names = []
-                for track_id in track_ids:
-                    track_info = sp.track(track_id)
-                    track_name = track_info['name']
-                    track_ids_names.append({'id':track_id, 'name':track_name})'''
-                # Chunk the track IDs into batches of 100 for audio features retrieval
+    new_releases=sp.new_releases(limit=20)
+    track_dict={}
+    album_ids = [album['id'] for album in new_releases['albums']['items']]
+    album_dict = {album['id']: album['release_date'] for album in new_releases['albums']['items']}
+    for album_id in album_dict:
+        album_dict[album_id] = standardize_date(album_dict[album_id]) 
+    print(album_dict)
+    for album_id in album_ids:
+        recent_tracks=sp.album_tracks(album_id=album_id,limit=20)
+        for track in recent_tracks['items']:
+            track_id = track['id']
+            release_date = album_dict.get(album_id)  # Get the release date from album_dict
+        # If release_date is None, skip adding to track_dict
+            if release_date:
+                track_dict[track_id] = release_date
+        track_ids.extend([track['id'] for track in recent_tracks['items']])
+        
     for i in range(0, len(track_ids), 100):
         chunk = track_ids[i:i + 100]
         audio_features1 = sp.audio_features(tracks=chunk)
@@ -162,12 +191,13 @@ def home():
                 #time.sleep(10)
     with connection.cursor() as cursor:
             for track in audio_features:
+                release_date=track_dict.get(track['id'],None)
                 cursor.execute("""
                             INSERT INTO potential_recommendations_2 
                             (id, name, acousticness, danceability, duration_ms, energy, 
                              instrumentalness, key_value, liveness, loudness, mode, 
-                             speechiness, tempo, time_signature, valence) 
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                             speechiness, tempo, time_signature, valence, release_date) 
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                             ON DUPLICATE KEY UPDATE 
                             name = VALUES(name), 
                             acousticness = VALUES(acousticness), 
@@ -182,27 +212,16 @@ def home():
                             speechiness = VALUES(speechiness), 
                             tempo = VALUES(tempo), 
                             time_signature = VALUES(time_signature), 
-                            valence = VALUES(valence);
+                            valence = VALUES(valence),
+                            release_date = VALUES(release_date);
                         """, (track['id'], None , track['acousticness'], 
                               track['danceability'], track['duration_ms'], track['energy'], 
                               track['instrumentalness'], track['key'], track['liveness'], 
                               track['loudness'], track['mode'], track['speechiness'], 
-                              track['tempo'], track['time_signature'], track['valence']))
-                connection.commit()
-    try:
-        result = subprocess.run([r'C:\Users\anous\spotify-project\venv\Scripts\python.exe', r'C:\Users\anous\spotify-project\recsystem.py'], capture_output=True, text=True, check=True) 
-        return jsonify({
-            'stdout': result.stdout,
-            'stderr': result.stderr
-        }), 200
-    
-    except subprocess.CalledProcessError as e:
-        # Capture and print the error output
-        return jsonify({
-            'error': str(e),
-            'stderr': e.stderr,
-            'stdout': e.stdout
-        }), 500
+                              track['tempo'], track['time_signature'], track['valence'], release_date))
+    connection.commit()
+    return redirect(url_for('potential_recommendations'))
+
 
 @app.route('/user_top_songs')
 def user_top_songs():
@@ -219,6 +238,9 @@ def potential_recommendations():
     with connection.cursor() as cursor:
         cursor.execute("SELECT * FROM potential_recommendations_2;")
         potential_recommendations = cursor.fetchall()
+    from recsystemredone import get_recommendations
+    top_10_ids=get_recommendations()
+    return top_10_ids
     return render_template('table.html', title='Potential Recommendations', items=potential_recommendations)
 
 # Callback route

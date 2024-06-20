@@ -42,16 +42,11 @@ def home():
     if not token_info:
         auth_url = sp_oauth.get_authorize_url()
         return redirect(auth_url)
-    
+    sp = spotipy.Spotify(auth=token_info)
     # Proceed to gather data and store it in the database
-    return gather_data()
+    return gather_data(sp)
 
-def gather_data():
-    token_info = cache_handler.get_cached_token()
-    if not token_info:
-        return redirect(url_for('home'))
-    
-    sp = spotipy.Spotify(auth=token_info['access_token'])
+def gather_data(sp):
     
     # Create the tables if they don't exist
     create_tables()
@@ -111,7 +106,7 @@ def potential_recommendations():
 @app.route('/callback')
 def callback():
     code = request.args.get('code')
-    token_info = sp_oauth.get_access_token(code, as_dict=False)  # Using as_dict=False to avoid deprecation warning
+    token_info = sp_oauth.get_access_token(code, as_dict=True)  # Using as_dict=False to avoid deprecation warning
     # Store the token info in session for further requests
     session['token_info'] = token_info
     return redirect('/')

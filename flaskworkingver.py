@@ -117,7 +117,7 @@ def home():
                     ON DUPLICATE KEY UPDATE name = VALUES(name);
                 """, (track['id'], track['name']))
     connection.commit()
-    return 'Done'
+    return redirect(url_for('user_top_songs'))
 
 @app.route('/user_top_songs')
 def user_top_songs():

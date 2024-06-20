@@ -50,7 +50,27 @@ def home():
                 ON DUPLICATE KEY UPDATE name = VALUES(name);
             """, (track['id'], track['name']))
     connection.commit()
-    return redirect(url_for('user_top_songs'))
+    top_artists = sp.current_user_top_artists(limit=50, offset=0, time_range='medium_term')
+    artists = {artist['id']: artist['name'] for artist in top_artists['items']}
+
+    # Process each top artist to find similar artists and their top tracks
+    for artist_id in artists.keys():
+        similar_artists = sp.artist_related_artists(artist_id)
+    
+        with connection.cursor() as cursor:
+            for artist in similar_artists['artists']:
+                similar_artist_id = artist['id']
+            similar_artist_name = artist['name']
+            
+            # Fetch top tracks of each similar artist
+            top_tracks = sp.artist_top_tracks(similar_artist_id)
+            for track in top_tracks['tracks']:
+                cursor.execute("""
+                    INSERT INTO potential_recommendations (id, name) VALUES (%s, %s)
+                    ON DUPLICATE KEY UPDATE name = VALUES(name);
+                """, (track['id'], track['name']))
+    connection.commit()
+    return redirect(url_for('potential_recommendations'))
 
 @app.route('/user_top_songs')
 def user_top_songs():
@@ -59,58 +79,12 @@ def user_top_songs():
         user_top_songs = cursor.fetchall()
     return render_template(r"table.html", title='User Top Songs', items=user_top_songs)
 
-@app.route('/me/top/tracks/')
-def pulltoptrack():
-    token_info = cache_handler.get_cached_token()
-    if not token_info:
-        redirect(url_for('home'))
-    sp = spotipy.Spotify(auth=token_info['access_token'])
-    top_tracks=sp.current_user_top_tracks(limit=50, offset=0, time_range='medium_term')
-    tracks={}
-    for i,x in enumerate(top_tracks['items']):
-        tracks[x['id']]=x['name']
-
-@app.route('/me/top/artists/')
-def pulltopartists():
-    token_info = cache_handler.get_cached_token()
-    if not token_info:
-        redirect(url_for('home'))
-    sp = spotipy.Spotify(auth=token_info['access_token'])
-    top_artists=sp.current_user_top_artists(limit=50, offset=0, time_range='medium_term')
-    artists={}
-    artists_str=""
-    for i,x in enumerate(top_artists['items']):
-        artists[x['id']]=x['name']
-        artists_str+= f"{x['id']}: {x['name']}<br>"
-    return redirect(url_for('similar_artists', id=next(iter(artists))))
-    
-@app.route('/artists/<id>/related-artists/')
-def similar_artists(id):
-    token_info = cache_handler.get_cached_token()
-    if not token_info:
-        redirect(url_for('home'))
-    sp = spotipy.Spotify(auth=token_info['access_token'])
-    similar_artists=sp.artist_related_artists(id)
-    s_art={}
-    s_str=''
-    for x in similar_artists['artists']:
-        s_art[x['id']]= x['name']
-        s_str+= f"{x['id']} : {x['name']}<br>"
-    return redirect(url_for('toptracks', id=next(iter(s_art))))
-
-@app.route("/artists/<id>/top-tracks/")
-def toptracks(id):
-    token_info = cache_handler.get_cached_token()
-    if not token_info:
-        redirect(url_for('home'))
-    sp = spotipy.Spotify(auth=token_info['access_token'])
-    tracks=sp.artist_top_tracks(id)
-    track_dict={}
-    t_str=''
-    for x in tracks['tracks']:
-        track_dict[x['id']]= x['name']
-        t_str+=f"{x['id']} : {x['name']}<br>"
-    return t_str
+@app.route('/potential-recommendations')
+def potential_recommendations():
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT id, name FROM potential_recommendations;")
+        potential_recommendations = cursor.fetchall()
+    return render_template('table.html', title='Potential Recommendations', items=potential_recommendations)
 
 # Callback route
 @app.route('/callback')
