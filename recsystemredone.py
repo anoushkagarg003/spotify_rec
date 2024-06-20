@@ -26,7 +26,7 @@ def get_recommendations():
     print(df_recs.head())
     
     df_recs.rename(columns={'key_value': 'key'}, inplace=True)
-    #df_recs = df_recs[~df_recs['id'].isin(df_user['id'])]
+    df_recs = df_recs[~df_recs['id'].isin(df_user['id'])]
     # Remove non-feature columns
     df_user_vector = df_user.drop(columns=['id', 'name'])
     df_recs_vector = df_recs.drop(columns=['id', 'name','release_date', 'push_new'])
