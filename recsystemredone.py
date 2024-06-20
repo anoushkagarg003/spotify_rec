@@ -46,21 +46,29 @@ def get_recommendations():
     recdata_pca_df = pd.DataFrame(recdata_pca, columns=['feature1', 'feature2', 'feature3', 'feature4', 'feature5', 'feature6', 'feature7'])
     column_variances = userdata_pca_df.var()
     print(f'COLUMN VARIANCES: {column_variances}')
-    # Function to calculate similarity scores
-    def similarity_scoring(song_vector, df):
-        similarity_scores = cosine_similarity(df, song_vector)
-        similarity_scores = similarity_scores.flatten()
-        cumulative_similarity_score = np.sum(similarity_scores)
-        return similarity_scores, cumulative_similarity_score
 
-    def compute_similarity_for_row(row, df_user_vector):
+# Calculate the inverse of the variances
+    inverse_variances = 1 / column_variances
+    print(f'INVERSE VARIANCES: {inverse_variances}')
+
+# Function to calculate weighted cosine similarity using inverse variances
+    def weighted_cosine_similarity(song_vector, df, inverse_variances):
+        weighted_song_vector = song_vector * inverse_variances
+        weighted_df = df * inverse_variances
+        weighted_similarity_scores = cosine_similarity(weighted_df, weighted_song_vector).flatten()
+        cumulative_similarity_score = np.sum(weighted_similarity_scores)
+        return weighted_similarity_scores, cumulative_similarity_score
+
+# Function to compute similarity scores for a single row of recdata_pca_df
+    def compute_similarity_for_row(row, df_user_vector, inverse_variances):
         song_vector = row.values.reshape(1, -1)
-        similarity_scores, cumulative_similarity_score = similarity_scoring(song_vector, df_user_vector)
+        similarity_scores, cumulative_similarity_score = weighted_cosine_similarity(song_vector, df_user_vector, inverse_variances)
         return pd.Series([similarity_scores, cumulative_similarity_score], index=['similarity_scores', 'cumulative_similarity_score'])
 
-    results = recdata_pca_df.apply(compute_similarity_for_row, axis=1, df_user_vector=userdata_pca_df)
+# Apply compute_similarity_for_row to each row in recdata_pca_df
+    results = recdata_pca_df.apply(compute_similarity_for_row, axis=1, df_user_vector=userdata_pca_df, inverse_variances=inverse_variances.values)
 
-    # Combine 
+# Combine similarity scores with other relevant information from df_recs
     df = df_recs[['id', 'name', 'release_date', 'push_new']].join(results)
     df['cumulative_similarity_score'] = df['cumulative_similarity_score'] + df['push_new'].apply(lambda x: x if not pd.isna(x) else 0)
     df_sorted = df.sort_values(by='cumulative_similarity_score', ascending=False)
