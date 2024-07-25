@@ -5,11 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Music Tracks</title>
     <style>
+        body {
+            background-color: black;
+            color: lightgreen;
+            font-family: 'Comic Sans MS', cursive, sans-serif; /* Cute font */
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            text-align: center;
+        }
+        .container {
+            width: 80%;
+            max-width: 800px;
+        }
         .track {
-            margin-bottom: 20px;
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px solid lightgreen;
+            border-radius: 10px;
+            background-color: #333;
+        }
+        h1 {
+            font-weight: bold;
+        }
+        h2 {
+            font-weight: bold;
+            margin-bottom: 10px;
         }
         .play-btn {
             cursor: pointer;
@@ -17,20 +41,64 @@
         .play-btn:hover {
             color: #007bff;
         }
+        .navigation-buttons {
+            margin-top: 20px;
+        }
+        .navigation-buttons button {
+            background-color: lightgreen;
+            border: none;
+            color: black;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 0 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .navigation-buttons button:hover {
+            background-color: #4CAF50;
+            color: white;
+        }
     </style>
 </head>
 <body>
-    <h1>Music Tracks</h1>
-    {% for track in tables %}
-        <div class="track">
-            <h2>{{ track.name }}</h2>
-            <audio controls>
-                <source src="{{ track.preview_url }}" type="audio/mpeg">
-                Your browser does not support the audio element.
-            </audio>
-            <br>
-            <a href="{{ track.play_link }}" target="_blank">Play Full Song</a>
+    <div class="container">
+        <h1>Music Tracks</h1>
+        {% for track in tables %}
+            <div class="track">
+                <h2>{{ track.name }}</h2>
+                <audio controls>
+                    <source src="{{ track.preview_url }}" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <br>
+                <a href="{{ track.play_link }}" target="_blank">Play Full Song</a>
+            </div>
+        {% endfor %}
+        <div class="navigation-buttons">
+            <button id="prev-btn" onclick="navigate(-1)">Previous</button>
+            <button id="next-btn" onclick="navigate(1)">Next</button>
         </div>
-    {% endfor %}
+    </div>
+    <script>
+        let currentIndex = 0;
+        const tracks = document.querySelectorAll('.track');
+
+        function showTrack(index) {
+            tracks.forEach((track, i) => {
+                track.style.display = i === index ? 'block' : 'none';
+            });
+        }
+
+        function navigate(step) {
+            currentIndex = (currentIndex + step + tracks.length) % tracks.length;
+            showTrack(currentIndex);
+        }
+
+        // Initial display
+        showTrack(currentIndex);
+    </script>
 </body>
 </html>
