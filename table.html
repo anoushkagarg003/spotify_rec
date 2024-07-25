@@ -27,6 +27,7 @@
             border: 2px solid lightgreen;
             border-radius: 10px;
             background-color: #333;
+            display: none; /* Hide all tracks initially */
         }
         h1 {
             font-weight: bold;
@@ -85,14 +86,26 @@
     <script>
         let currentIndex = 0;
         const tracks = document.querySelectorAll('.track');
+        let currentAudio = null;
 
         function showTrack(index) {
             tracks.forEach((track, i) => {
                 track.style.display = i === index ? 'block' : 'none';
+                if (i === index) {
+                    // Pause any currently playing audio
+                    const audio = track.querySelector('audio');
+                    if (audio) {
+                        audio.play();
+                        currentAudio = audio;
+                    }
+                }
             });
         }
 
         function navigate(step) {
+            if (currentAudio) {
+                currentAudio.pause();
+            }
             currentIndex = (currentIndex + step + tracks.length) % tracks.length;
             showTrack(currentIndex);
         }
