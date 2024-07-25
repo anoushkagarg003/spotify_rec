@@ -220,6 +220,22 @@ def home():
                               track['loudness'], track['mode'], track['speechiness'], 
                               track['tempo'], track['time_signature'], track['valence'], release_date))
     connection.commit()
+    from recsystemredone import get_recommendations
+    top_10_ids=get_recommendations()
+    print(top_10_ids)
+    info=sp.tracks(top_10_ids)
+    print(info)
+    i=0
+    df_recs = pd.DataFrame(columns=['id', 'preview_url', 'play_link','name'])
+    rows = []
+
+    for id, x in zip(top_10_ids, info['tracks']):
+        url = x['external_urls']['spotify']  # Extract Spotify URL
+        preview_url = x['preview_url']
+        name = x['name']
+        rows.append({'id': id, 'preview_url': preview_url, 'play_link': url, 'name': name})
+    df_recs = pd.DataFrame(rows)
+    session['df_recs'] = df_recs.to_json(orient='split')
     return redirect(url_for('potential_recommendations'))
 
 
@@ -231,7 +247,7 @@ def user_top_songs():
         cursor.execute("SELECT * FROM potential_recommendations_2;")
         potential_recommendations = cursor.fetchall()
         print(user_top_songs)
-    return render_template(r"table.html", title='User Top Songs', items=user_top_songs)
+    return 'none'
 
 @app.route('/potential_recommendations')
 def potential_recommendations():
@@ -239,9 +255,11 @@ def potential_recommendations():
         cursor.execute("SELECT * FROM potential_recommendations_2;")
         potential_recommendations = cursor.fetchall()
     from recsystemredone import get_recommendations
-    top_10_ids=get_recommendations()
-    return top_10_ids
-    return render_template('table.html', title='Potential Recommendations', items=potential_recommendations)
+    df_recs_json = session.get('df_recs')
+    if df_recs_json:
+        df_recs = pd.read_json(df_recs_json, orient='split')
+        return df_recs.to_html() 
+    return 'none'
 
 # Callback route
 @app.route('/callback')
