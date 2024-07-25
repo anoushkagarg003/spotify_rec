@@ -3,63 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }}</title>
+    <title>Music Tracks</title>
     <style>
-        table {
-            border-collapse: collapse;
-            width: 100%;
-            margin-top: 20px;
+        .track {
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
         }
-        th, td {
-            border: 1px solid black;
-            padding: 8px;
-            text-align: left;
+        .play-btn {
+            cursor: pointer;
+        }
+        .play-btn:hover {
+            color: #007bff;
         }
     </style>
 </head>
 <body>
-    <h2>{{ title }}</h2>
-    <table>
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Acousticness</th>
-                <th>Danceability</th>
-                <th>Duration (ms)</th>
-                <th>Energy</th>
-                <th>Instrumentalness</th>
-                <th>Key</th>
-                <th>Liveness</th>
-                <th>Loudness</th>
-                <th>Mode</th>
-                <th>Speechiness</th>
-                <th>Tempo</th>
-                <th>Time Signature</th>
-                <th>Valence</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for item in items %}
-            <tr>
-                <td>{{ item[0] }}</td>
-                <td>{{ item[1] }}</td>
-                <td>{{ item[2] }}</td>
-                <td>{{ item[3] }}</td>
-                <td>{{ item[4] }}</td>
-                <td>{{ item[5] }}</td>
-                <td>{{ item[6] }}</td>
-                <td>{{ item[7] }}</td>
-                <td>{{ item[8] }}</td>
-                <td>{{ item[9] }}</td>
-                <td>{{ item[10] }}</td>
-                <td>{{ item[11] }}</td>
-                <td>{{ item[12] }}</td>
-                <td>{{ item[13] }}</td>
-                <td>{{ item[14] }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <h1>Music Tracks</h1>
+    {% for track in tables %}
+        <div class="track">
+            <h2>{{ track.name }}</h2>
+            <audio controls>
+                <source src="{{ track.preview_url }}" type="audio/mpeg">
+                Your browser does not support the audio element.
+            </audio>
+            <br>
+            <a href="{{ track.play_link }}" target="_blank">Play Full Song</a>
+        </div>
+    {% endfor %}
 </body>
 </html>

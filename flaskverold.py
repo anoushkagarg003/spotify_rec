@@ -254,11 +254,11 @@ def potential_recommendations():
     with connection.cursor() as cursor:
         cursor.execute("SELECT * FROM potential_recommendations_2;")
         potential_recommendations = cursor.fetchall()
-    from recsystemredone import get_recommendations
     df_recs_json = session.get('df_recs')
     if df_recs_json:
         df_recs = pd.read_json(df_recs_json, orient='split')
-        return df_recs.to_html() 
+        tables = df_recs.to_dict(orient='records')  # Convert DataFrame to list of dictionaries
+        return render_template('table.html', tables=tables)
     return 'none'
 
 # Callback route
@@ -266,7 +266,6 @@ def potential_recommendations():
 def callback():
     code = request.args.get('code')
     token_info = sp_oauth.get_access_token(code)
-    # Store the token info in session for further requests
     session['token_info'] = token_info
     return redirect('/')
 
